@@ -1,5 +1,6 @@
 import java.awt.*;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
 import java.security.SecureRandom;
 import java.sql.*;
 import javax.swing.*;
@@ -19,18 +20,6 @@ import com.github.lgooddatepicker.components.DatePicker;
 import com.github.lgooddatepicker.components.DatePickerSettings;
 import java.time.LocalDate;
 import java.time.ZoneId;
-
-import static java.sql.Types.NULL;
-
-//TODO Circuit and Hotel selection improvements (next)
-//TODO CONFIRM YOUR SIMULATION EMPTY WINDOW
-
-
-// TODO Agregar dato de termino de viaje (independiente de termino de circuito)
-//  cambia simulacion a esReservacion true, decrementa disponibilidad de hotel y circuito notifica y da id de reservacion)
-//  En simulacionCircuito mostrar lugares a visitar de ese circuito
-
-// TODO AGREGAR FORMA DE PONER TEXTO EN SEARCH SIMULATION ID BY NAME
 
 public class Main extends JFrame {
     static Connection conn;
@@ -154,11 +143,6 @@ public class Main extends JFrame {
                 String saltedPassword = password + storedSalt;
                 byte[] hashedBytes = md.digest(saltedPassword.getBytes(StandardCharsets.UTF_8));
                 String hashedPassword = Base64.getEncoder().encodeToString(hashedBytes);
-
-                // Debugging messages
-                //System.out.println("Stored password hash: " + storedPasswordHash);
-                //System.out.println("Generated password hash: " + hashedPassword);
-                //System.out.println("Stored salt: " + storedSalt);
 
                 return storedPasswordHash.equals(hashedPassword);
             } else {
@@ -291,7 +275,7 @@ public class Main extends JFrame {
                 }
 
                 // Start a transaction
-                connection.setAutoCommit(false);
+                Objects.requireNonNull(connection).setAutoCommit(false);
 
                 try (PreparedStatement insertReservationStmt = connection.prepareStatement(insertReservationQuery, Statement.RETURN_GENERATED_KEYS)) {
                     insertReservationStmt.setInt(1, Integer.parseInt(idSimulation));
@@ -335,10 +319,10 @@ public class Main extends JFrame {
             }
         }
 
-        public boolean comprobationOfAvilability (String idSimulation) {    
+        public boolean confirmationOfAvailability(String idSimulation) {
             boolean available = true;
             try {
-                ResultSet resultSet = conn.createStatement().executeQuery("SELECT simulation.num_people, datecircuit.num_people  FROM simulationcircuit, datecircuit, simulation WHERE circuit_id = '"+idSimulation+"' AND datecircuit.circuit_id=simulationCircuit.circuit_id AND simulation.simulation_id=simulationCircuit.simulation_id" );
+                ResultSet resultSet = conn.createStatement().executeQuery("SELECT simulation.num_people, datecircuit.num_people  FROM simulationcircuit, datecircuit, simulation WHERE simulationcircuit.circuit_id = '"+idSimulation+"' AND datecircuit.circuit_id=simulationCircuit.circuit_id AND simulation.simulation_id=simulationCircuit.simulation_id" );
                 while (resultSet.next()) {
                     int circuitAvailability = resultSet.getInt("simulation.num_people");
                     int travelers =  resultSet.getInt("circuit.num_people");
@@ -363,7 +347,7 @@ public class Main extends JFrame {
             //AVAILABILITY OF ROOMS
             try {
                 Statement statement = conn.createStatement();
-                ResultSet resultSet = statement.executeQuery("SELECT num_rooms, num_people, hotel_name FROM Hotel, simulationhotel, simulation WHERE  simulation_id= '"+ idSimulation + "' AND hotel.hotel_name = simulationhotel.hotel_name AND simulation.simulation_id=simulationhotel.simulation_id");
+                ResultSet resultSet = statement.executeQuery("SELECT num_rooms, num_people, hotel.hotel_name FROM Hotel, simulationhotel, simulation WHERE simulationhotel.simulation_id = '"+ idSimulation + "' AND hotel.hotel_name = simulationhotel.hotel_name AND simulation.simulation_id=simulationhotel.simulation_id");
 
                 while (resultSet.next()) {
                     int hotelAvailability = resultSet.getInt("num_rooms");
@@ -464,7 +448,7 @@ public class Main extends JFrame {
                             Client_generalDataRequest.setVisible(true);
                             this.dispose();
                         } else {
-                            if (comprobationOfAvilability(idSimulation)){
+                            if (confirmationOfAvailability(idSimulation)){
                                 simulationToReservation(idSimulation);
                                 JOptionPane.showMessageDialog(Reservation_idRequest.this, "Your journey awaits you... your reservation has been made", "Reservation has been made", JOptionPane.INFORMATION_MESSAGE);
                             }else{
@@ -726,11 +710,7 @@ public class Main extends JFrame {
             detailsPanel.setBackground(Color.DARK_GRAY);
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.insets = new Insets(5, 5, 5, 5);
-            /**
-             * The SQL query is built that selects the columns "client_name", "client_id", "departure_date", "arrival_date",
-             * "num_people", "cost" and "simulation_created_at" from the table "Simulation" where the value of "simulation_id"
-             * matches with the specified Simulation ID.
-             */
+
             String query = "SELECT client_name, client_id, departure_date, arrival_date, num_people, cost, simulation_created_at FROM Simulation WHERE simulation_id = " + simulationId;
             try (Connection connection = getConnection()) {
                 if (connection == null) {
@@ -935,6 +915,10 @@ public class Main extends JFrame {
                         authPreparedStatement.executeUpdate();
 
                         JOptionPane.showMessageDialog(this, "Client added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                        // Go back to the main menu
+                        Main main = new Main();
+                        main.setVisible(true);
+                        this.dispose();
                     } else {
                         JOptionPane.showMessageDialog(this, "Failed to add client.", "Error", JOptionPane.ERROR_MESSAGE);
                     }//end if-else
@@ -1437,7 +1421,6 @@ public class Main extends JFrame {
 
         public CreateSimulation_selectHotels(boolean isGuest, String[] selectedCities, int hotels, String[] selectedHotels, String[] selectedCircuits, String userName, String country, Date departureDate, Date arrivalDate, int travelers, int[] daysPerCity) {
             List<JCheckBox> checkBoxes = new ArrayList<>();
-
             setTitle("Select Hotels:");
             setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
             setSize(600, 400);
@@ -1481,12 +1464,10 @@ public class Main extends JFrame {
                         "SELECT hotel_Name, room_cost, breakfast_cost FROM Hotel  WHERE (city_name = '" + city + "')"
                 );
 
-
                 while (resultSet.next()) {
                     String hotelName = resultSet.getString("hotel_Name");
                     double roomCost = resultSet.getDouble("room_cost");
-                    double breakfastCost = resultSet.getDouble("room_cost");
-
+                    double breakfastCost = resultSet.getDouble("breakfast_cost");
 
                     String checkBoxText = hotelName + ", $" + roomCost + "per room, $" + breakfastCost + " per breakfast";
                     JCheckBox checkBox = new JCheckBox(checkBoxText);
@@ -1496,40 +1477,39 @@ public class Main extends JFrame {
                     checkBoxes.add(checkBox);
                     buttonGroup.add(checkBox);
 
-                    checkBox.addActionListener(e -> {
-                        if (checkBox.isSelected()) {
+                    checkBox.addItemListener(e -> {
+                        boolean isSelected = e.getStateChange() == ItemEvent.SELECTED;
+                        if (isSelected) {
                             hotelSelected = hotelName;
                         }
                     });
 
                     hotelPanel.add(checkBox);
-
                 }
 
             } catch (SQLException e) {
                 e.printStackTrace();
             }
 
-            //llamarse recursivamente
+
+            JPanel buttonPanel = new JPanel();
+            buttonPanel.setBackground(Color.DARK_GRAY);
+
             if (hotels != selectedCities.length - 1) {
                 JButton nextButton = new JButton("Next");
                 nextButton.setFont(new Font("Arial", Font.PLAIN, 18));
                 nextButton.setMargin(new Insets(1, 1, 1, 1));
+
                 nextButton.addActionListener(e -> {
                     selectedHotels[hotels] = hotelSelected;
-                    CreateSimulation_selectHotels CreateSimulation_selectHotels = new CreateSimulation_selectHotels(isGuest,selectedCities, hotels + 1, selectedHotels, selectedCircuits, userName, country, departureDate, arrivalDate, travelers, daysPerCity);
+                    CreateSimulation_selectHotels CreateSimulation_selectHotels = new CreateSimulation_selectHotels(isGuest, selectedCities, hotels + 1, selectedHotels, selectedCircuits, userName, country, departureDate, arrivalDate, travelers, daysPerCity);
                     CreateSimulation_selectHotels.setVisible(true);
                     this.dispose();
                 });
-                hotelPanel.add(nextButton);
+                buttonPanel.add(nextButton);
             }
 
-
             mainPanel.add(formPanel, BorderLayout.CENTER);
-
-            // Panel with "Back" and "Confirm" buttons
-            JPanel buttonPanel = new JPanel();
-            buttonPanel.setBackground(Color.DARK_GRAY);
 
             // "Back" button
             JButton backButton = new JButton("Back");
@@ -1542,22 +1522,20 @@ public class Main extends JFrame {
             buttonPanel.add(backButton);
 
             if (hotels == selectedCities.length - 1) {
-                // "Confirm" button
                 JButton confirmButton = new JButton("Confirm");
                 confirmButton.setFont(new Font("Arial", Font.PLAIN, 18));
                 confirmButton.addActionListener(e -> {
                     selectedHotels[hotels] = hotelSelected;
-                    //confirmation Window
-                    ConfirmSimulation confirmSimulation = new ConfirmSimulation(isGuest,userName, country,departureDate,arrivalDate, travelers, selectedCities, selectedCircuits, selectedHotels, daysPerCity);
+                    ConfirmSimulation confirmSimulation = new ConfirmSimulation(isGuest, userName, country, departureDate, arrivalDate, travelers, selectedCities, selectedCircuits, selectedHotels, daysPerCity);
                     confirmSimulation.setVisible(true);
                     this.dispose();
                 });
                 buttonPanel.add(confirmButton);
             }
+
             mainPanel.add(buttonPanel, BorderLayout.SOUTH);
             add(mainPanel);
             this.dispose();
-
         }//end class CreateSimulation_selectHotels
     }//end class CreateSimulation_selectHotels
     
@@ -1710,14 +1688,10 @@ public class Main extends JFrame {
                         if (initialCity) {
                             selectedCircuitsIdsArray[circuits] = selectedCircuitIds;
                             daysPerCity[circuits] = days;
-                            //System.out.println(selectedCircuitIds);
-                            //System.out.println(selectedCircuitsIdsArray[circuits]);
                         }
                         if (!initialCity) {
                             selectedCircuitsIdsArray[circuits+1] = selectedCircuitIds;
                             daysPerCity[circuits+1] = days;
-                            //System.out.println(selectedCircuitIds);
-                            //System.out.println(selectedCircuitsIdsArray[circuits+1]);
                         }
 
                         CreateSimulation_selectCircuits CreateSimulation_selectCircuits;
@@ -1994,7 +1968,7 @@ public class Main extends JFrame {
             JButton confirmButton = new JButton("Confirm");
             confirmButton.setFont(new Font("Arial", Font.PLAIN, 18));
             double finalTotalCost = totalCost;            confirmButton.addActionListener(e -> {
-                FinishSimulation finishSimulation = new FinishSimulation(isGuest, departureDate, arrivalDate, travelers, selectedCities, selectedCircuits, daysPerCity, finalTotalCost);
+                FinishSimulation finishSimulation = new FinishSimulation(isGuest, userName, departureDate, arrivalDate, travelers, selectedCircuits, selectedHotels, daysPerCity, finalTotalCost);
                 finishSimulation.setVisible(true);
                 this.dispose();
             });
@@ -2005,13 +1979,6 @@ public class Main extends JFrame {
             mainPanel.add(summaryPanel, BorderLayout.CENTER);
             add(mainPanel);
         } //end confirmSimulation
-        /**d
-         * Run a query against the database to get information about a specific circuit.
-         * @param selectedCircuit The identifier of the selected circuit.
-         * @return The result of the query as a ResultSet object.
-         * This method is responsible for executing a query in the database using the identifier of a selected circuit as a parameter.
-         * The query seeks to obtain information about the city of departure, city of arrival and cost of the circuit
-         */
         private ResultSet queryCircuit (String selectedCircuit) {
             ResultSet resultSet = null;
                try {
@@ -2024,12 +1991,7 @@ public class Main extends JFrame {
                }
                return resultSet;
         }
-        /**
-         * Run a database query to get information about a specific hotel
-         * @param selectedHotel The name of the selected hotel.
-         * @return The result of the query as a ResultSet object.
-         * The query seeks to obtain information on the cost of the rooms and the cost of breakfast in that hotel.
-         */
+
         private ResultSet queryHotel (String selectedHotel) {
             ResultSet resultSet = null;
             try {
@@ -2042,10 +2004,9 @@ public class Main extends JFrame {
             }
             return resultSet;
         }
-
     }
 
-    class FinishSimulation extends JFrame {
+    static class FinishSimulation extends JFrame {
         public FinishSimulation (boolean isGuest, String userName, Date departureDate,Date arrivalDate,int travelers, String[] selectedCircuits, String[] selectedHotels, int[] daysPerCity, double cost) {
             try {
                 ResultSet resultSet = conn.createStatement().executeQuery(
@@ -2072,9 +2033,9 @@ public class Main extends JFrame {
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
-
+            
+            int client_id = 0;
             int simulationId;
-            int client_id = NULL;
 
             if (!isGuest){
                 String client = "NULL";
@@ -2084,7 +2045,7 @@ public class Main extends JFrame {
                         System.err.println("Failed to establish a connection to the database.");
                     }
 
-                    Statement statement = connection.createStatement();
+                    Statement statement = Objects.requireNonNull(connection).createStatement();
                     ResultSet resultSet = statement.executeQuery(query);
 
                     if (resultSet.next()) {
@@ -2101,97 +2062,102 @@ public class Main extends JFrame {
                     System.err.println("Failed to establish a connection to the database.");
                     return;
                 }//end if
-                Date today = new Date(System.currentTimeMillis());
-                String simulationQuery = "INSERT INTO Simulation (client_name, client_id, departure_date, arrival_date, num_people, cost, simulation_created_at, is_reservation) VALUES ( ?, ?, ?, ?, ?, ?, ?,?)";
-                PreparedStatement queryPreparedStatement = connection.prepareStatement(simulationQuery, Statement.RETURN_GENERATED_KEYS);
-                queryPreparedStatement.setString(1, userName);
-                queryPreparedStatement.setInt(2, client_id);
-                queryPreparedStatement.setDate(3, departureDate);
-                queryPreparedStatement.setDate(4, arrivalDate);
-                queryPreparedStatement.setInt(5, travelers);
-                queryPreparedStatement.setInt(6, (int) cost);
-                queryPreparedStatement.setDate(7, today);
-                queryPreparedStatement.setBoolean(8, false);
-                int rowsAffected = queryPreparedStatement.executeUpdate();
+                if (isGuest) {
+                    String simulationQuery = "INSERT INTO Simulation (client_name, departure_date, arrival_date, num_people, cost, simulation_created_at, is_reservation) VALUES ( ?, ?, ?, ?, ?, ?, ?)";
+                    PreparedStatement queryPreparedStatement = connection.prepareStatement(simulationQuery, Statement.RETURN_GENERATED_KEYS);
+                    queryPreparedStatement.setString(1, userName);
+                    queryPreparedStatement.setDate(2, departureDate);
+                    queryPreparedStatement.setDate(3, arrivalDate);
+                    queryPreparedStatement.setInt(4, travelers);
+                    queryPreparedStatement.setInt(5, (int) cost);
+                    Date today = new Date(System.currentTimeMillis());
+                    queryPreparedStatement.setDate(6, today);
+                    queryPreparedStatement.setBoolean(7, false);
+                    int rowsAffected = queryPreparedStatement.executeUpdate();
 
-                if (rowsAffected == 0) {
-                    JOptionPane.showMessageDialog(this, "Failed to add client.", "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                } else {
+                    if (rowsAffected == 0) {
+                        JOptionPane.showMessageDialog(this, "Failed to add simulation.", "Error", JOptionPane.ERROR_MESSAGE);
+                    }//end if
                     // Retrieve the auto increment ID
                     try (ResultSet generatedKeys = queryPreparedStatement.getGeneratedKeys()) {
                         if (generatedKeys.next()) {
                             simulationId = generatedKeys.getInt(1);
+
+                        } else {
+                            throw new SQLException("Failed to retrieve the generated simulation ID.");
+                        }
+                    }
+                } else {
+                    Date today = new Date(System.currentTimeMillis());
+                    String simulationQuery = "INSERT INTO Simulation (client_name, client_id, departure_date, arrival_date, num_people, cost, simulation_created_at, is_reservation) VALUES ( ?, ?, ?, ?, ?, ?, ?,?)";
+                    PreparedStatement queryPreparedStatement = connection.prepareStatement(simulationQuery, Statement.RETURN_GENERATED_KEYS);
+                    queryPreparedStatement.setString(1, userName);
+                    queryPreparedStatement.setInt(2, client_id);
+                    queryPreparedStatement.setDate(3, departureDate);
+                    queryPreparedStatement.setDate(4, arrivalDate);
+                    queryPreparedStatement.setInt(5, travelers);
+                    queryPreparedStatement.setInt(6, (int) cost);
+                    queryPreparedStatement.setDate(7, today);
+                    queryPreparedStatement.setBoolean(8, false);
+                    int rowsAffected = queryPreparedStatement.executeUpdate();
+
+                    if (rowsAffected == 0) {
+                        JOptionPane.showMessageDialog(this, "Failed to add simulation.", "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                    // Retrieve the auto increment ID
+                    try (ResultSet generatedKeys = queryPreparedStatement.getGeneratedKeys()) {
+                        if (generatedKeys.next()) {
+                            simulationId = generatedKeys.getInt(1);
+
                         } else {
                             throw new SQLException("Failed to retrieve the generated simulation ID.");
                         }
                     }
                 }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
-
-            //add tuple in SimulationCircuit
-            for (String selectedCircuit : selectedCircuits) {
-                try (Connection connection = getConnection()) {
-                    if (connection == null) {
-                        System.err.println("Failed to establish a connection to the database.");
-                        return;
-                    }//end if
-                    Date today = new Date(System.currentTimeMillis());
+                //add tuple in SimulationCircuit
+                PreparedStatement queryPreparedStatement;
+                int rowsAffected;
+                for (String selectedCircuit : selectedCircuits) {
+                    new Date(System.currentTimeMillis());
                     String simulationCircuitQuery = "INSERT INTO SimulationCircuit (simulation_id, circuit_id) VALUES (?, ?)";
-                    PreparedStatement queryPreparedStatement = connection.prepareStatement(simulationCircuitQuery, Statement.RETURN_GENERATED_KEYS);
+                    queryPreparedStatement = connection.prepareStatement(simulationCircuitQuery, Statement.RETURN_GENERATED_KEYS);
                     queryPreparedStatement.setInt(1, simulationId);
                     queryPreparedStatement.setString(2, selectedCircuit);
-                    int rowsAffected = queryPreparedStatement.executeUpdate();
+                    rowsAffected = queryPreparedStatement.executeUpdate();
 
                     if (rowsAffected == 0) {
                         JOptionPane.showMessageDialog(this, "Failed to add client.", "Error", JOptionPane.ERROR_MESSAGE);
                         return;
                     }//end if
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
-            } //end for
+                } //end for
 
-            Date departureFromHotel = departureDate;
-            Date arrivalAtHotel = departureDate;
-
-            for (int i = 0; i<selectedHotels.length;i++){
-                try (Connection connection = getConnection()) {
-                    if (connection == null) {
-                        System.err.println("Failed to establish a connection to the database.");
-                        return;
-                    }//end if
-
-                    departureFromHotel = arrivalAtHotel;
+                Date arrivalAtHotel = departureDate;
+                //add tuple in SimulationHotel
+                for (int i = 0; i<selectedHotels.length;i++){
+                    Date departureFromHotel = arrivalAtHotel;
                     arrivalAtHotel = new Date(departureFromHotel.getTime() + daysPerCity[i] * 86400000L);
 
-                    Date today = new Date(System.currentTimeMillis());
+                    new Date(System.currentTimeMillis());
                     String simulationHotelQuery = "INSERT INTO SimulationHotel (simulation_id, hotel_name, departure_date, arrival_date) VALUES (?,?,?,?)";
-                    PreparedStatement queryPreparedStatement = connection.prepareStatement(simulationHotelQuery, Statement.RETURN_GENERATED_KEYS);
+                    queryPreparedStatement = connection.prepareStatement(simulationHotelQuery, Statement.RETURN_GENERATED_KEYS);
                     queryPreparedStatement.setInt(1, simulationId);
                     queryPreparedStatement.setString(2, selectedHotels[i]);
                     queryPreparedStatement.setDate(3, departureFromHotel);
                     queryPreparedStatement.setDate(4, arrivalAtHotel);
-                    int rowsAffected = queryPreparedStatement.executeUpdate();
+                    rowsAffected = queryPreparedStatement.executeUpdate();
 
                     if (rowsAffected == 0) {
                         JOptionPane.showMessageDialog(this, "Failed to add client.", "Error", JOptionPane.ERROR_MESSAGE);
                         return;
-                    }//end if
-
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
-            } //end for
-
-            ShowSimulationIdWindow showSimulationIdWindow = new ShowSimulationIdWindow(userName, simulationId);
-            showSimulationIdWindow.setVisible(true);
-            this.dispose();
-        }
-
-        public FinishSimulation(boolean isGuest, Date departureDate, Date arrivalDate, int travelers, String[] selectedCities, String[] selectedCircuits, int[] daysPerCity, double finalTotalCost) {
+                    } else {
+                        ShowSimulationIdWindow showSimulationIdWindow = new ShowSimulationIdWindow(userName, simulationId);
+                        showSimulationIdWindow.setVisible(true);
+                        this.dispose();
+                    }
+                } //end for
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -2369,13 +2335,8 @@ public class Main extends JFrame {
             add(mainPanel);
         }//end SelectCountryToViewPamphlet
     }//end class SelectCountryToViewPamphlet
-    /**
-     * Class that represents a graphical user interface (GUI) for selecting a city and viewing a brochure.
-     * Extends the JFrame class.
-     */
+
     class SelectCityToViewPamphlet extends JFrame {
-        private String selectedCountry;
-        private List<String> cities;
         /**
          * Method that finds and returns a list of cities for a specific country
          * @param searchedCountry The country for which cities will be searched.
@@ -2489,35 +2450,6 @@ public class Main extends JFrame {
     }//end class SelectCityToViewPamphlet
 
     class SelectCircuitAndHotel extends JFrame {
-        /**
-         * Method that finds and returns a list of places for a specific city and circuit
-         * @param searchedCities The searched cities for which places will be searched.
-         * @param circuit_id The identifier of the circuit for which places will be searched.
-         * @return A list of place names found for the cities and circuit.
-         */
-        public List<String> searchedPlaces(String searchedCities, String circuit_id) {
-            List<String> places = new ArrayList<>();
-
-            try (Connection connection = getConnection()) {
-                if (connection == null) {
-                    System.err.println("Failed to establish a connection to the database.");
-                    return places;
-                }
-
-                String query = "SELECT place_name FROM stage, circuit WHERE stage.circuit_id = circuit.circuit_id AND circuit.circuit_id " + circuit_id + "' AND  ( departing_city = '" + searchedCities + "' OR arrival_city = '" + searchedCities + "')";
-                PreparedStatement preparedStatement = connection.prepareStatement(query);
-                ResultSet resultSet = preparedStatement.executeQuery();
-
-                while (resultSet.next()) {
-                    String place = resultSet.getString("city_name");
-                    places.add(place);
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }//
-            return places;
-        }
-
         public SelectCircuitAndHotel(String selectedCity, String selectedCountry, String username) {
             setTitle("Select Circuit and Hotel");
             setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -2540,15 +2472,6 @@ public class Main extends JFrame {
             contentPanel.setBackground(Color.DARK_GRAY);
             contentPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-            /**
-            * Prepares a parameterized query to select circuits from the "Circuit" table that match the specified departure city and departure country.
-             * Sets the values of the query parameters with the values of the selectedCity and selectedCountry variables.
-             * Executes the query and gets a ResultSet object containing the results.
-             * Iterates through the results obtained using the next() method of the ResultSet.
-             * On each iteration, it gets the value of the "description" column in the current row and adds it to the list of circuits.
-             * In case an exception occurs during query execution, the exception trace is printed using e.printStackTrace
-             */
-            // Query and display circuits based on the selected city and country
             ArrayList<String> circuits = new ArrayList<>();
             try {
                 PreparedStatement pstmt = conn.prepareStatement("SELECT * FROM Circuit WHERE departing_city = ? AND departing_country = ?");
@@ -2791,7 +2714,7 @@ public class Main extends JFrame {
                     if (connection == null) {
                         System.err.println("Failed to establish a connection to the database.");
                     }
-                    Statement statement = connection.createStatement();
+                    Statement statement = Objects.requireNonNull(connection).createStatement();
                     ResultSet resultSet = statement.executeQuery(query);
 
                     if (resultSet.next()) {
