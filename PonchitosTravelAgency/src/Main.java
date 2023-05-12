@@ -7,8 +7,6 @@ import java.util.*;
 import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -16,13 +14,12 @@ import java.sql.Statement;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 
 public class Main extends JFrame {
     static Connection conn;
 
-    public Main() throws SQLException {
+    public Main() {
         conn = getConnection();
 
         setTitle("PONCHITO: Travel Agency");
@@ -190,7 +187,7 @@ public class Main extends JFrame {
         return connection;
     }//end getConnection
 
-    public static void main(String[] arg) throws Exception {
+    public static void main(String[] arg) {
         Main main = new Main();
         main.setVisible(true);
     }//end main
@@ -247,7 +244,7 @@ public class Main extends JFrame {
         }//end GuestWindow
     }//end class GuestWindow
     class Reservation_idRequest extends JFrame {
-        private JTextField idField;
+        private final JTextField idField;
         public boolean checkSimulationIdExists(String idSimulation) {
             String query = "SELECT * FROM Simulation WHERE simulation_id = '" + idSimulation + "'";
             try (Connection connection = getConnection()) {
@@ -307,11 +304,8 @@ public class Main extends JFrame {
             // Check Simulation ID by Name Button
             JButton checkIdButton = new JButton("Check Simulation ID by Name");
             checkIdButton.setFont(new Font("Arial", Font.PLAIN, 18));
-            checkIdButton.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    //
-                }
+            checkIdButton.addActionListener(e -> {
+                //
             });
             buttonPanel.add(checkIdButton);
 
@@ -505,7 +499,7 @@ public class Main extends JFrame {
         }//end Client_generalDataRequest
     }// end class Client_generalDataRequest
     class CreateSimulation_nameRequest extends JFrame {
-        private JTextField nameField;
+        private final JTextField nameField;
         public CreateSimulation_nameRequest() {
 
             setTitle("Let's Start your Journey....");
@@ -604,12 +598,9 @@ public class Main extends JFrame {
             countryComboBox.setFont(new Font("Arial", Font.PLAIN, 18));
             countryComboBox.setForeground(Color.WHITE);
             countryComboBox.setBackground(Color.DARK_GRAY);
-            countryComboBox.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    JComboBox<String> comboBox = (JComboBox<String>) e.getSource();
-                    System.out.println("Selected Country: " + comboBox.getSelectedItem());
-                }
+            countryComboBox.addActionListener(e -> {
+                JComboBox<String> comboBox = (JComboBox<String>) e.getSource();
+                System.out.println("Selected Country: " + comboBox.getSelectedItem());
             });
             mainPanel.add(countryComboBox, BorderLayout.CENTER);
 
@@ -659,9 +650,9 @@ public class Main extends JFrame {
     }
 
     class CreateSimulation_generalData extends JFrame {
-        private JFormattedTextField arrivalDateField;
-        private JFormattedTextField departureDateField;
-        private JSpinner travelersSpinner;
+        private final JFormattedTextField arrivalDateField;
+        private final JFormattedTextField departureDateField;
+        private final JSpinner travelersSpinner;
 
         public CreateSimulation_generalData() {
             setTitle("General Data:");
@@ -738,7 +729,7 @@ public class Main extends JFrame {
 
             // Get the list of city names based on the selected country
             List<String> cityNames = new ArrayList<>();
-            String selectedCountry = CreateSimulation_selectCountry.countryComboBox.getSelectedItem().toString();
+            String selectedCountry = Objects.requireNonNull(CreateSimulation_selectCountry.countryComboBox.getSelectedItem()).toString();
             try {
                 ResultSet resultSet = conn.createStatement().executeQuery("SELECT city_name FROM City WHERE country = '" + selectedCountry + "'");
                 while (resultSet.next()) {
@@ -800,7 +791,7 @@ public class Main extends JFrame {
             JPanel bottomPanel = new JPanel();
             bottomPanel.setLayout(new BorderLayout());
             bottomPanel.add(citiesPanel, BorderLayout.NORTH);
-            JPanel buttonPanel = null;
+            JPanel buttonPanel;
             buttonPanel = new JPanel();
             buttonPanel.setBackground(Color.DARK_GRAY);
 
@@ -823,7 +814,7 @@ public class Main extends JFrame {
                 List<NumberedCheckBox> sortedSelectedCheckBoxes = cityCheckBoxes.stream()
                         .filter(NumberedCheckBox::isSelected)
                         .sorted(Comparator.comparingInt(NumberedCheckBox::getNumber))
-                        .collect(Collectors.toList());
+                        .toList();
 
                 List<String> selectedCitiesList = new ArrayList<>();
                 for (NumberedCheckBox checkBox : sortedSelectedCheckBoxes) {
@@ -865,8 +856,8 @@ public class Main extends JFrame {
 
 
     class CreateSimulation_selectCircuits extends JFrame{
-            private List<JCheckBox> checkBoxes;
-            private List<String> selectedCircuitIds;
+        private final List<JCheckBox> checkBoxes;
+        private final List<String> selectedCircuitIds;
         public CreateSimulation_selectCircuits(String[] selectedCities, Date arrivalDate, Date departureDate) {
             // Initialize lists
             checkBoxes = new ArrayList<>();
@@ -916,12 +907,7 @@ public class Main extends JFrame {
                 try {
                     final Date[] departureDateCircuit = {departureDate};
                     ResultSet resultSet = conn.createStatement().executeQuery(
-                            "SELECT Circuit.circuit_id,description,departure_date,trip_duration,cost" +
-                            "FROM Circuit, DateCircuit" +
-                            "WHERE (Circuit.circuit_id = DateCircuit.circuit_id " +
-                            "AND departing_city = '"+departingCity+
-                            "' AND arrival_city = '"+departingCity+
-                            "' AND departure_date = '"+departureDate+"')");
+                            "SELECT Circuit.circuit_id,description,departure_date,trip_duration,cost FROM Circuit, DateCircuit  WHERE (Circuit.circuit_id = DateCircuit.circuit_id AND departing_city = '+departingCity' AND arrival_city = '+departingCity' AND departure_date = '"+departureDate+"')");
 
                     /*
 
@@ -936,14 +922,13 @@ public class Main extends JFrame {
                     AtomicBoolean notNext = new AtomicBoolean(false);
                     while (resultSet.next()) {
                         while (notNext.get()) {
-
+                            //TODO ??????
                         } //end while
                         notNext.set(true);
                         String circuitId = resultSet.getString("circuit_id");
                         String description = resultSet.getString("description");
                         Date date = resultSet.getDate("departure_date");
                         int tripDuration = resultSet.getInt("trip_duration");
-                        daysUpdate = tripDuration;
                         double cost = resultSet.getDouble("cost");
 
                         String checkBoxText = description + ", " + date + ", " + tripDuration + " days, $" + cost;
@@ -955,7 +940,6 @@ public class Main extends JFrame {
                         buttonGroup.add(checkBox);
 
                         int currentIndex = i;
-                        Date finalDepartureDate = departureDate;
                         checkBox.addActionListener(e -> {
                             if (checkBox.isSelected()) {
 
@@ -975,7 +959,7 @@ public class Main extends JFrame {
                         nextButton.addActionListener(e -> {
 
 
-                           for (JCheckBox box : checkBoxes) {
+                            for (JCheckBox ignored : checkBoxes) {
                                 if (checkBox.isSelected()) {
                                     Calendar cal = Calendar.getInstance();
                                     cal.setTime(departureDateCircuit[0]);
@@ -1069,12 +1053,9 @@ public class Main extends JFrame {
             countryComboBox.setFont(new Font("Arial", Font.PLAIN, 18));
             countryComboBox.setForeground(Color.WHITE);
             countryComboBox.setBackground(Color.DARK_GRAY);
-            countryComboBox.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    JComboBox<String> comboBox = (JComboBox<String>) e.getSource();
-                    System.out.println("Selected Country: " + comboBox.getSelectedItem());
-                }
+            countryComboBox.addActionListener(e -> {
+                JComboBox<String> comboBox = (JComboBox<String>) e.getSource();
+                System.out.println("Selected Country: " + comboBox.getSelectedItem());
             });
             mainPanel.add(countryComboBox, BorderLayout.CENTER);
 
@@ -1084,7 +1065,7 @@ public class Main extends JFrame {
             //JButton backButton = new JButton("Back");
             //backButton.setFont(new Font("Arial", Font.PLAIN, 18));
             //backButton.addActionListener(e -> {
-                // Show the ClientOptionsWindow again
+            // Show the ClientOptionsWindow again
             //    ClientOptionsWindow clientOptionsWindow = new ClientOptionsWindow();
             //    clientOptionsWindow.setVisible(true);
             //    this.dispose();
@@ -1095,7 +1076,7 @@ public class Main extends JFrame {
             nextButton.addActionListener(e -> {
                 if (countryComboBox.getSelectedIndex() != -1) {
                     // Show the SelectCityToViewPamphlet
-                    SelectCityToViewPamphlet selectCityToViewPamphlet = new SelectCityToViewPamphlet(countryComboBox.getSelectedItem().toString());
+                    SelectCityToViewPamphlet selectCityToViewPamphlet = new SelectCityToViewPamphlet(Objects.requireNonNull(countryComboBox.getSelectedItem()).toString());
                     selectCityToViewPamphlet.setVisible(true);
                     this.dispose();
                 }
@@ -1104,16 +1085,15 @@ public class Main extends JFrame {
             //buttonPanel.add(backButton);
             //mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
-            // Fi
             nextButton.add(nextButton);
-            mainPanel.add(nextPanel, BorderLayout.SOUTH);
+            mainPanel.add(nextButton, BorderLayout.SOUTH);
 
             add(mainPanel);
         }//end SelectCountryToViewPamphlet
     }//end class SelectCountryToViewPamphlet
 
     class SelectCityToViewPamphlet extends JFrame {
-        private JComboBox<String> cityComboBox;
+        private final JComboBox<String> cityComboBox;
 
         public SelectCityToViewPamphlet(String selectedCountry) {
             setTitle("Select City to view pamphlet:");
@@ -1154,12 +1134,9 @@ public class Main extends JFrame {
             cityComboBox.setFont(new Font("Arial", Font.PLAIN, 18));
             cityComboBox.setForeground(Color.WHITE);
             cityComboBox.setBackground(Color.DARK_GRAY);
-            cityComboBox.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    JComboBox<String> comboBox = (JComboBox<String>) e.getSource();
-                    System.out.println("Selected City: " + comboBox.getSelectedItem());
-                }
+            cityComboBox.addActionListener(e -> {
+                JComboBox<String> comboBox = (JComboBox<String>) e.getSource();
+                System.out.println("Selected City: " + comboBox.getSelectedItem());
             });
             mainPanel.add(cityComboBox, BorderLayout.CENTER);
 
@@ -1182,7 +1159,7 @@ public class Main extends JFrame {
             nextButton.addActionListener(e -> {
                 if (cityComboBox.getSelectedIndex() != -1) {
                     // Show the SelectCircuitAndHotel
-                    SelectCircuitAndHotel selectCircuitAndHotel = new SelectCircuitAndHotel(cityComboBox.getSelectedItem().toString(), selectedCountry);
+                    SelectCircuitAndHotel selectCircuitAndHotel = new SelectCircuitAndHotel(Objects.requireNonNull(cityComboBox.getSelectedItem()).toString(), selectedCountry);
                     selectCircuitAndHotel.setVisible(true);
                     this.dispose();
                 }
@@ -1196,8 +1173,6 @@ public class Main extends JFrame {
     }//end class SelectCityToViewPamphlet
 
     class SelectCircuitAndHotel extends JFrame {
-        private JList<String> circuitList;
-        private JList<String> hotelList;
 
         public SelectCircuitAndHotel(String selectedCity, String selectedCountry) {
             setTitle("Select Circuit and Hotel");
@@ -1235,7 +1210,7 @@ public class Main extends JFrame {
             } catch (SQLException e) {
                 e.printStackTrace(); // Error case for no circuit
             }
-            circuitList = new JList<>(circuits.toArray(new String[0]));
+            JList<String> circuitList = new JList<>(circuits.toArray(new String[0]));
             circuitList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             contentPanel.add(new JScrollPane(circuitList));
 
@@ -1253,7 +1228,7 @@ public class Main extends JFrame {
             } catch (SQLException e) {
                 e.printStackTrace(); // Error case for no hotel
             }
-            hotelList = new JList<>(hotels.toArray(new String[0]));
+            JList<String> hotelList = new JList<>(hotels.toArray(new String[0]));
             hotelList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             contentPanel.add(new JScrollPane(hotelList));
 
